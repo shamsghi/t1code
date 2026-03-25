@@ -94,6 +94,14 @@
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
+      "optionalDependencies": {
+        "@opentui/core-darwin-arm64": "0.1.90",
+        "@opentui/core-darwin-x64": "0.1.90",
+        "@opentui/core-linux-arm64": "0.1.90",
+        "@opentui/core-linux-x64": "0.1.90",
+        "@opentui/core-win32-arm64": "0.1.90",
+        "@opentui/core-win32-x64": "0.1.90",
+      },
     },
     "apps/web": {
       "name": "@t3tools/web",
