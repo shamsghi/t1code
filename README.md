@@ -12,10 +12,6 @@ _T3Code, but in your terminal._
 
 </div>
 
-## What it is
-
-`t1code` is a terminal-first fork of T3 Code.
-
 ## Install
 
 ```bash
