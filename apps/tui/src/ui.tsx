@@ -8581,7 +8581,7 @@ export function App({
                             iconColor={providerColor(draftProvider)}
                             label={
                               responsiveLayout.showComposerModelLabel
-                                ? `${modelControlLabel(draftProvider, draftModel)} ▾`
+                                ? modelControlLabel(draftProvider, draftModel)
                                 : undefined
                             }
                             compact={!responsiveLayout.showComposerModelLabel}
@@ -8595,7 +8595,7 @@ export function App({
                                 icon={composerTraitsIcon(draftProvider)}
                                 label={
                                   responsiveLayout.showComposerTraitsLabel
-                                    ? truncateToolbarLabel(`${composerTraits} ▾`, 14)
+                                    ? truncateToolbarLabel(composerTraits, 14)
                                     : undefined
                                 }
                                 compact={!responsiveLayout.showComposerTraitsLabel}

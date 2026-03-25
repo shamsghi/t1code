@@ -14,10 +14,10 @@ describe("formatReasoningEffortLabel", () => {
 
 describe("truncateToolbarLabel", () => {
   it("leaves labels that fit untouched", () => {
-    expect(truncateToolbarLabel("No reasoning ▾", 14)).toBe("No reasoning ▾");
+    expect(truncateToolbarLabel("No reasoning", 14)).toBe("No reasoning");
   });
 
   it("truncates long labels with an ellipsis", () => {
-    expect(truncateToolbarLabel("Extra High · Fast ▾", 14)).toBe("Extra High ·…");
+    expect(truncateToolbarLabel("Extra High · Fast", 14)).toBe("Extra High ·…");
   });
 });
