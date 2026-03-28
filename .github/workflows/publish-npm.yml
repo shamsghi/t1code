@@ -7,11 +7,32 @@ on:
     tags:
       - "v*"
     paths:
-      - "apps/tui/**"
-      - "apps/server/**"
-      - "apps/web/**"
-      - "packages/**"
-      - "scripts/**"
+      - "apps/tui/**/*.ts"
+      - "apps/tui/**/*.tsx"
+      - "apps/tui/**/*.js"
+      - "apps/tui/**/*.mjs"
+      - "apps/tui/**/*.json"
+      - "apps/tui/bin/**"
+      - "apps/server/**/*.ts"
+      - "apps/server/**/*.tsx"
+      - "apps/server/**/*.js"
+      - "apps/server/**/*.mjs"
+      - "apps/server/**/*.json"
+      - "apps/web/**/*.ts"
+      - "apps/web/**/*.tsx"
+      - "apps/web/**/*.js"
+      - "apps/web/**/*.mjs"
+      - "apps/web/**/*.json"
+      - "apps/web/**/*.css"
+      - "packages/**/*.ts"
+      - "packages/**/*.tsx"
+      - "packages/**/*.js"
+      - "packages/**/*.mjs"
+      - "packages/**/*.json"
+      - "scripts/**/*.ts"
+      - "scripts/**/*.js"
+      - "scripts/**/*.mjs"
+      - "scripts/**/*.json"
       - "package.json"
       - "bun.lock"
       - ".github/workflows/publish-npm.yml"
@@ -32,10 +53,11 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
