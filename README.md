@@ -18,4 +18,18 @@ bunx @maria_rcks/t1code
 
 <sub>Requires Bun.</sub>
 
+Install globally:
+
+```bash
+bun add -g @maria_rcks/t1code
+```
+
+Develop from source:
+
+```bash
+git clone https://github.com/maria-rcks/t1code.git
+cd t1code
+bun dev:tui
+```
+
 <sub>Based on T3 Code by [@t3dotgg](https://github.com/t3dotgg) and [@juliusmarminge](https://github.com/juliusmarminge).</sub>
