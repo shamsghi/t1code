@@ -6,6 +6,7 @@ import type {
   InputRenderable,
   PasteEvent,
   ScrollBoxRenderable,
+  TerminalConsole,
   TextareaRenderable,
 } from "@opentui/core";
 import {
@@ -129,6 +130,7 @@ import {
   resolveCodeBlockFiletype,
   truncateCodeBlockContent,
 } from "./messageMarkdown";
+import { openExternalUrl } from "./openExternal";
 import { type TuiPrefs, readPrefs, writePrefs } from "./prefs";
 import { resolveTuiResponsiveLayout, TUI_SIDEBAR_WIDTH } from "./responsiveLayout";
 import { resolveAttachedServerConnection, startServerSupervisor } from "./serverSupervisor";
@@ -256,6 +258,7 @@ const SIDEBAR_THREAD_SORT_LABELS: Record<SidebarThreadSortOrder, string> = {
   updated_at: "Last user message",
   created_at: "Created at",
 };
+const SELECTION_COPY_TOAST_MESSAGE = "Copied to clipboard";
 
 type ComposerPathTrigger = {
   query: string;
@@ -993,20 +996,6 @@ function summarizeGitActionResult(
   if (action === "commit_push") return "Push complete";
   if (action === "commit_push_pr") return "PR flow complete";
   return "Commit complete";
-}
-
-async function openExternalUrl(url: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn("open", [url], {
-      detached: true,
-      stdio: "ignore",
-    });
-    child.once("error", reject);
-    child.once("spawn", () => {
-      child.unref();
-      resolve();
-    });
-  });
 }
 
 function basenameOfPath(input: string): string {
@@ -1957,6 +1946,10 @@ const SIDEBAR_THREAD_TIMESTAMP_GAP = 1;
 const SIDEBAR_THREAD_LAYOUT_BUFFER = 1;
 const HEADER_THREAD_TITLE_MAX_LENGTH = 44;
 const COMPOSER_TEXTAREA_MIN_HEIGHT = 3;
+const COMPOSER_PENDING_TEXTAREA_MIN_HEIGHT = 2;
+const PLAN_MODE_PREVIOUS_ICON = "";
+const PLAN_MODE_NEXT_ICON = "";
+const PLAN_MODE_SUBMIT_ICON = "󰄬";
 const COMPOSER_TEXTAREA_MAX_HEIGHT = 8;
 const COMPOSER_PATH_SUGGESTION_MAX_ITEMS = 5;
 const SEND_ANIMATION_INTERVAL_MS = 90;
@@ -2445,10 +2438,20 @@ function PendingInputOptionRow(props: {
   shortcutLabel?: string;
   selected?: boolean;
   disabled?: boolean;
+  compact?: boolean;
+  trailingMargin?: number;
   onPress: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const active = !props.disabled && (props.selected || hovered);
+  const backgroundColor = props.selected
+    ? PALETTE.surfaceInfo
+    : hovered
+      ? PALETTE.controlHover
+      : PALETTE.composerPanel;
+  const leftAccentColor = props.selected ? PALETTE.info : PALETTE.composerPanel;
+  const labelColor = props.disabled ? PALETTE.subtle : PALETTE.text;
+  const descriptionColor = props.selected ? PALETTE.text : PALETTE.subtle;
 
   return (
     <box
@@ -2462,33 +2465,42 @@ function PendingInputOptionRow(props: {
       }}
       style={{
         flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: active ? PALETTE.controlActive : PALETTE.surface,
-        paddingLeft: 1,
-        paddingRight: 1,
-        marginBottom: 1,
-        minHeight: 1,
+        alignItems: "stretch",
+        marginBottom: props.trailingMargin ?? 1,
+        minHeight: props.description ? 3 : 1,
       }}
     >
-      {props.shortcutLabel ? (
-        <text
-          content={props.shortcutLabel}
-          style={{
-            fg: active ? PALETTE.accent : PALETTE.subtle,
-            marginRight: 1,
-          }}
-        />
-      ) : null}
-      <box style={{ flexDirection: "column", flexGrow: 1, flexShrink: 1 }}>
-        <text
-          content={props.label}
-          style={{ fg: props.disabled ? PALETTE.subtle : PALETTE.text }}
-        />
-        {props.description ? (
-          <text content={props.description} style={{ fg: PALETTE.subtle }} />
+      <box style={{ width: 1, backgroundColor: leftAccentColor, flexShrink: 0 }} />
+      <box
+        style={{
+          flexDirection: "row",
+          alignItems: "flex-start",
+          backgroundColor,
+          paddingLeft: 1,
+          paddingRight: 1,
+          paddingTop: props.compact ? 0 : 1,
+          paddingBottom: props.compact ? 0 : 1,
+          flexGrow: 1,
+          flexShrink: 1,
+          minHeight: props.description ? 3 : 1,
+        }}
+      >
+        {props.shortcutLabel ? (
+          <text
+            content={props.shortcutLabel}
+            style={{
+              fg: props.selected || active ? PALETTE.info : PALETTE.subtle,
+              marginRight: 1,
+            }}
+          />
         ) : null}
+        <box style={{ flexDirection: "column", flexGrow: 1, flexShrink: 1, minWidth: 0 }}>
+          <text content={props.label} style={{ fg: labelColor }} />
+          {props.description ? (
+            <text content={props.description} style={{ fg: descriptionColor }} />
+          ) : null}
+        </box>
       </box>
-      {props.selected ? <text content="󰄬" style={{ fg: PALETTE.accent }} /> : null}
     </box>
   );
 }
@@ -2563,6 +2575,29 @@ function SettingsRow(props: {
   );
 }
 
+function SelectionCopyToast(props: { message: string }) {
+  return (
+    <box
+      style={{
+        position: "absolute",
+        top: 1,
+        right: 2,
+        zIndex: 60,
+        backgroundColor: PALETTE.popup,
+        paddingLeft: 1,
+        paddingRight: 1,
+        paddingTop: 1,
+        paddingBottom: 1,
+        flexDirection: "row",
+        alignItems: "center",
+      }}
+    >
+      <text content="󰆏" style={{ fg: PALETTE.text, marginRight: 1 }} />
+      <text content={props.message} style={{ fg: PALETTE.text }} />
+    </box>
+  );
+}
+
 function SettingResetButton(props: { onPress: () => void }) {
   const [hovered, setHovered] = useState(false);
 
@@ -2594,6 +2629,7 @@ function ComposerSendButton(props: {
   onPress: () => void;
   disabled?: boolean;
   variant?: "send" | "stop";
+  width?: number;
 }) {
   const [hovered, setHovered] = useState(false);
   const isStop = props.variant === "stop";
@@ -2620,7 +2656,7 @@ function ComposerSendButton(props: {
       style={{
         paddingLeft: props.label ? 1 : 0,
         paddingRight: props.label ? 1 : 0,
-        width: props.label ? "auto" : 3,
+        width: props.label ? "auto" : (props.width ?? 3),
         height: 1,
         backgroundColor: background,
         flexDirection: "row",
@@ -2662,6 +2698,9 @@ export function App({
     writeOut?: (chunk: string) => void;
     on?: (event: string, handler: (...args: unknown[]) => void) => void;
     off?: (event: string, handler: (...args: unknown[]) => void) => void;
+    console?: TerminalConsole;
+    getSelection?: () => { getSelectedText: () => string } | null;
+    clearSelection?: () => void;
   };
   const paths = useMemo(() => resolveTuiPaths(), []);
   const logger = useMemo(() => createT1Logger(paths.logPath), [paths.logPath]);
@@ -2669,6 +2708,7 @@ export function App({
   const [snapshot, setSnapshot] = useState<OrchestrationReadModel | null>(null);
   const [serverConfig, setServerConfig] = useState<TuiServerConfig>(null);
   const [, setStatus] = useState("Booting");
+  const [selectionCopyToast, setSelectionCopyToast] = useState<string | null>(null);
   const [startupIssue, setStartupIssue] = useState<string | null>(null);
   const [mainView, setMainView] = useState<MainView>("thread");
   const [composer, setComposer] = useState("");
@@ -4436,7 +4476,9 @@ export function App({
         setStatus(
           process.platform === "darwin"
             ? "No image found on clipboard"
-            : "Clipboard images are not supported on this platform",
+            : process.platform === "linux"
+              ? "No clipboard image found, or no Linux clipboard helper is installed"
+              : "Clipboard images are not supported on this platform",
         );
         return;
       }
@@ -5020,11 +5062,6 @@ export function App({
         const option = activePendingProgress.activeQuestion.options[digit - 1];
         if (option && composer.trim().length === 0) {
           selectActivePendingUserInputOption(activePendingProgress.activeQuestion.id, option.label);
-          if (!activePendingProgress.isLastQuestion) {
-            setTimeout(() => {
-              setActivePendingUserInputQuestionIndex(activePendingProgress.questionIndex + 1);
-            }, 150);
-          }
           return;
         }
       }
@@ -7021,7 +7058,7 @@ export function App({
   const composerBanner = activePendingApproval
     ? { bg: PALETTE.surfaceWarn, text: approvalHint(activePendingApproval) }
     : activePendingUserInput
-      ? { bg: PALETTE.surfaceInfo, text: userInputHint(activePendingUserInput) }
+      ? { bg: null, text: userInputHint(activePendingUserInput) }
       : showPlanFollowUpPrompt && latestProposedPlan
         ? { bg: PALETTE.surfacePlan, text: planHint() }
         : null;
@@ -7538,6 +7575,44 @@ export function App({
       : null;
 
   useEffect(() => {
+    if (!selectionCopyToast) return;
+    const timeout = setTimeout(() => {
+      setSelectionCopyToast((current) => (current === selectionCopyToast ? null : current));
+    }, 1200);
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [selectionCopyToast]);
+
+  const showSelectionCopyToast = useCallback(() => {
+    setSelectionCopyToast(SELECTION_COPY_TOAST_MESSAGE);
+  }, []);
+
+  const copyRendererSelection = useCallback(() => {
+    const selectedText = terminalRenderer.getSelection?.()?.getSelectedText().trim();
+    if (!selectedText) return false;
+    void copyToClipboard(selectedText, "Copied to clipboard");
+    terminalRenderer.clearSelection?.();
+    showSelectionCopyToast();
+    return true;
+  }, [copyToClipboard, showSelectionCopyToast, terminalRenderer]);
+
+  useEffect(() => {
+    const terminalConsole = terminalRenderer.console;
+    if (!terminalConsole) return;
+    const previousHandler = terminalConsole.onCopySelection;
+    terminalConsole.onCopySelection = (value: string) => {
+      if (!value.trim()) return;
+      void copyToClipboard(value, "Copied to clipboard");
+      terminalRenderer.clearSelection?.();
+      showSelectionCopyToast();
+    };
+    return () => {
+      terminalConsole.onCopySelection = previousHandler;
+    };
+  }, [copyToClipboard, showSelectionCopyToast, terminalRenderer]);
+
+  useEffect(() => {
     if (imagePreview?.status !== "ready" || !imagePreview.filePath) {
       clearTerminalImagePreview(terminalRenderer);
       return;
@@ -7587,6 +7662,9 @@ export function App({
         if (showSidebarOverlay) {
           setSidebarOverlayOpen(false);
         }
+      }}
+      onMouseUp={() => {
+        copyRendererSelection();
       }}
       style={{
         position: "relative",
@@ -8061,6 +8139,10 @@ export function App({
               minHeight: 0,
             }}
           >
+            {mainView === "thread" && selectionCopyToast ? (
+              <SelectionCopyToast message={selectionCopyToast} />
+            ) : null}
+
             {mainView !== "thread" ? (
               <scrollbox
                 focused={focusArea === "settings"}
@@ -9237,11 +9319,14 @@ export function App({
                     backgroundColor: PALETTE.composerPanel,
                     border: true,
                     borderStyle: "rounded",
-                    borderColor:
-                      focusArea === "composer"
+                    borderColor: activePendingProgress
+                      ? focusArea === "composer"
+                        ? PALETTE.composerBorderMuted
+                        : PALETTE.border
+                      : focusArea === "composer"
                         ? PALETTE.composerBorder
                         : PALETTE.composerBorderMuted,
-                    paddingTop: 1,
+                    paddingTop: activePendingProgress ? 0 : 1,
                     paddingBottom: 1,
                     paddingLeft: 1,
                     paddingRight: 1,
@@ -9252,7 +9337,7 @@ export function App({
                   {composerBanner ? (
                     <box
                       style={{
-                        backgroundColor: composerBanner.bg,
+                        ...(composerBanner.bg ? { backgroundColor: composerBanner.bg } : {}),
                         paddingLeft: 1,
                         paddingRight: 1,
                         paddingTop: 0,
@@ -9266,11 +9351,13 @@ export function App({
 
                   <box
                     style={{
-                      marginBottom: 1,
+                      marginBottom: activePendingProgress ? 0 : 1,
                       height: activePendingProgress ? "auto" : composerTextareaHeight,
-                      minHeight: composerTextareaHeight,
-                      paddingLeft: 1,
-                      paddingRight: 1,
+                      minHeight: activePendingProgress
+                        ? COMPOSER_PENDING_TEXTAREA_MIN_HEIGHT
+                        : composerTextareaHeight,
+                      paddingLeft: activePendingProgress ? 0 : 1,
+                      paddingRight: activePendingProgress ? 0 : 1,
                       flexDirection: "row",
                       alignItems: "flex-start",
                     }}
@@ -9325,27 +9412,36 @@ export function App({
                       }}
                     >
                       {activePendingProgress?.activeQuestion ? (
-                        <box style={{ flexDirection: "column", marginBottom: 1 }}>
-                          <box
-                            style={{ flexDirection: "row", alignItems: "center", marginBottom: 1 }}
-                          >
-                            <text
-                              content={activePendingProgress.activeQuestion.header}
-                              style={{ fg: PALETTE.info, marginRight: 1 }}
-                            />
+                        <box
+                          style={{
+                            flexDirection: "column",
+                            backgroundColor: PALETTE.composerPanel,
+                            paddingLeft: 1,
+                            paddingRight: 1,
+                            marginBottom: 1,
+                          }}
+                        >
+                          <box style={{ flexDirection: "row", alignItems: "flex-start" }}>
                             {activePendingUserInput &&
                             activePendingUserInput.questions.length > 1 ? (
                               <text
                                 content={`${activePendingProgress.questionIndex + 1}/${activePendingUserInput.questions.length}`}
-                                style={{ fg: PALETTE.subtle }}
+                                style={{ fg: PALETTE.subtle, marginRight: 1 }}
                               />
-                            ) : null}
+                            ) : (
+                              <text
+                                content={activePendingProgress.activeQuestion.header}
+                                style={{ fg: PALETTE.subtle, marginRight: 1 }}
+                              />
+                            )}
+                            <box style={{ flexGrow: 1, flexShrink: 1, minWidth: 0 }}>
+                              <text
+                                content={activePendingProgress.activeQuestion.question}
+                                style={{ fg: PALETTE.text }}
+                              />
+                            </box>
                           </box>
-                          <text
-                            content={activePendingProgress.activeQuestion.question}
-                            style={{ fg: PALETTE.text, marginBottom: 1 }}
-                          />
-                          <box style={{ flexDirection: "column" }}>
+                          <box style={{ flexDirection: "column", marginTop: 1 }}>
                             {activePendingProgress.activeQuestion.options.map((option, index) => (
                               <PendingInputOptionRow
                                 key={`${activePendingProgress.activeQuestion?.id}:${option.label}`}
@@ -9359,6 +9455,13 @@ export function App({
                                   !activePendingProgress.usingCustomAnswer
                                 }
                                 disabled={activePendingIsResponding}
+                                compact
+                                trailingMargin={
+                                  index ===
+                                  (activePendingProgress.activeQuestion?.options.length ?? 0) - 1
+                                    ? 0
+                                    : 1
+                                }
                                 onPress={() =>
                                   selectActivePendingUserInputOption(
                                     activePendingProgress.activeQuestion!.id,
@@ -9525,7 +9628,9 @@ export function App({
                           textColor: PALETTE.text,
                           focusedTextColor: PALETTE.text,
                           placeholderColor: PALETTE.subtle,
-                          height: activePendingProgress ? COMPOSER_TEXTAREA_MIN_HEIGHT : "100%",
+                          height: activePendingProgress
+                            ? COMPOSER_PENDING_TEXTAREA_MIN_HEIGHT
+                            : "100%",
                           width: "100%",
                         }}
                       />
@@ -9643,7 +9748,9 @@ export function App({
                           <>
                             {activePendingProgress.questionIndex > 0 ? (
                               <ToolbarButton
-                                label="Previous"
+                                icon={PLAN_MODE_PREVIOUS_ICON}
+                                compact
+                                width={3}
                                 disabled={activePendingIsResponding}
                                 onPress={() => {
                                   setActivePendingUserInputQuestionIndex(
@@ -9651,16 +9758,16 @@ export function App({
                                   );
                                 }}
                               />
-                            ) : null}
+                            ) : (
+                              <box style={{ width: 3, flexShrink: 0 }} />
+                            )}
                             <ComposerSendButton
-                              icon={activePendingProgress.isLastQuestion ? "↑" : "→"}
-                              label={
-                                activePendingIsResponding
-                                  ? "Submitting"
-                                  : activePendingProgress.isLastQuestion
-                                    ? "Submit answers"
-                                    : "Next question"
+                              icon={
+                                activePendingProgress.isLastQuestion
+                                  ? PLAN_MODE_SUBMIT_ICON
+                                  : PLAN_MODE_NEXT_ICON
                               }
+                              width={3}
                               disabled={
                                 activePendingIsResponding ||
                                 (activePendingProgress.isLastQuestion

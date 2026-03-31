@@ -29,6 +29,7 @@ Develop from source:
 ```bash
 git clone https://github.com/maria-rcks/t1code.git
 cd t1code
+bun install
 bun dev:tui
 ```
 

@@ -10,6 +10,13 @@ bunx @maria_rcks/t1code
 
 Requires Bun `>=1.3.9`.
 
+Linux notes:
+
+- T1Code follows XDG defaults on Linux:
+  `XDG_CONFIG_HOME/t1code` for prefs, `XDG_STATE_HOME/t1code` for logs and image state, and `XDG_DATA_HOME/t1code` for app data.
+- Opening links uses desktop helpers such as `xdg-open` or `gio open`.
+- Clipboard image paste works with `wl-paste` on Wayland or `xclip` on X11.
+
 ## What You Get
 
 - Native-feeling terminal UI built on OpenTUI
